@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-auth
+  namespace: gestion-projet
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend-auth
+  template:
+    metadata:
+      labels:
+        app: frontend-auth
+    spec:
+      containers:
+        - name: frontend-auth
+          image: nour292/frontend-auth:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
