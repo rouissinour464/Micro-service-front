@@ -1,9 +1,13 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'node:20-alpine'   // ✅ Node + npm inclus
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
 
     triggers {
-        githubPush()               // ✅ lancement automatique au push
-        cron('H/10 * * * *')       // ✅ toutes les 10 minutes
+        githubPush()   // ✅ lancement automatique au push
     }
 
     environment {
@@ -20,24 +24,9 @@ pipeline {
 
     stages {
 
-        /* =======================
-           SOURCE CODE
-        ======================= */
         stage('Checkout') {
             steps {
                 checkout scm
-            }
-        }
-
-        /* =======================
-           INSTALL & BUILD REACT
-        ======================= */
-        stage('Install Dependencies') {
-            steps {
-                sh '''
-                    set -e
-                    npm install
-                '''
             }
         }
 
@@ -45,24 +34,13 @@ pipeline {
             steps {
                 sh '''
                     set -e
+                    npm install
                     npm run build
                 '''
             }
         }
 
-        /* =======================
-           DOCKER
-        ======================= */
-        stage('Docker Build') {
-            steps {
-                sh '''
-                    set -e
-                    docker build -t ${IMAGE}:${TAG} .
-                '''
-            }
-        }
-
-        stage('Docker Push') {
+        stage('Docker Build & Push') {
             steps {
                 withCredentials([
                     string(credentialsId: 'dockerhub-pass', variable: 'DOCKER_PASSWORD')
@@ -70,29 +48,18 @@ pipeline {
                     sh '''
                         set -e
                         echo "$DOCKER_PASSWORD" | docker login -u ${REGISTRY} --password-stdin
+                        docker build -t ${IMAGE}:${TAG} .
                         docker push ${IMAGE}:${TAG}
                     '''
                 }
             }
         }
 
-        /* =======================
-           DEPLOY K3S
-        ======================= */
-        stage('Deploy to K3s (Kustomize)') {
+        stage('Deploy to K3s') {
             steps {
                 sh '''
                     set -e
-                    echo "Using kubeconfig: $KUBECONFIG"
                     kubectl apply -k k8s
-                '''
-            }
-        }
-
-        stage('Rollout Restart') {
-            steps {
-                sh '''
-                    set -e
                     kubectl rollout restart deployment frontend-auth -n gestion-projet
                     kubectl rollout status deployment frontend-auth -n gestion-projet --timeout=180s
                 '''
@@ -105,7 +72,7 @@ pipeline {
             echo "✅ FRONTEND DEPLOYED SUCCESSFULLY 🎉"
         }
         failure {
-            echo "❌ FRONTEND PIPELINE FAILED — CHECK LOGS ❌"
+            echo "❌ PIPELINE FAILED ❌"
         }
     }
 }
