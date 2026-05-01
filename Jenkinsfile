@@ -1,13 +1,8 @@
 pipeline {
-    agent {
-        docker {
-            image 'node:20-alpine'   // ✅ Node + npm inclus
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
 
     triggers {
-        githubPush()   // ✅ lancement automatique au push
+        githubPush()   // ✅ automatique au push
     }
 
     environment {
@@ -19,7 +14,6 @@ pipeline {
 
     options {
         timestamps()
-        skipDefaultCheckout(true)
     }
 
     stages {
@@ -30,17 +24,35 @@ pipeline {
             }
         }
 
+        /* =======================
+           BUILD REACT (DANS DOCKER)
+        ======================= */
         stage('Build React') {
             steps {
                 sh '''
                     set -e
-                    npm install
-                    npm run build
+                    docker run --rm \
+                      -v "$PWD:/app" \
+                      -w /app \
+                      node:20-alpine \
+                      sh -c "npm install && npm run build"
                 '''
             }
         }
 
-        stage('Docker Build & Push') {
+        /* =======================
+           DOCKER IMAGE
+        ======================= */
+        stage('Docker Build') {
+            steps {
+                sh '''
+                    set -e
+                    docker build -t ${IMAGE}:${TAG} .
+                '''
+            }
+        }
+
+        stage('Docker Push') {
             steps {
                 withCredentials([
                     string(credentialsId: 'dockerhub-pass', variable: 'DOCKER_PASSWORD')
@@ -48,13 +60,15 @@ pipeline {
                     sh '''
                         set -e
                         echo "$DOCKER_PASSWORD" | docker login -u ${REGISTRY} --password-stdin
-                        docker build -t ${IMAGE}:${TAG} .
                         docker push ${IMAGE}:${TAG}
                     '''
                 }
             }
         }
 
+        /* =======================
+           DEPLOY K3S
+        ======================= */
         stage('Deploy to K3s') {
             steps {
                 sh '''
