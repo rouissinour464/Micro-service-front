@@ -12,110 +12,61 @@ pipeline {
     }
 
     tools {
-        jdk 'JDK21'
+        nodejs 'NODE18'
     }
 
     environment {
-        REGISTRY   = "nour292"
-        IMAGE      = "${REGISTRY}/auth-service"
-        TAG        = "latest"
-        KUBECONFIG = "/var/lib/jenkins/.kube/config"
+        DOCKER_USER = "nour292"
+        IMAGE       = "nour292/react-frontend"
+        TAG         = "${BUILD_NUMBER}"
+        NAMESPACE   = "gestion-projet"
     }
 
     stages {
 
-        /* =======================
-           SOURCE CODE
-        ======================= */
         stage('Checkout') {
             steps {
                 checkout scm
-
-                sh '''
-                    set -eux
-
-                    echo "===== CURRENT DIRECTORY ====="
-                    pwd
-
-                    echo "===== FILES ====="
-                    ls -la
-
-                    echo "===== SEARCH MVNW ====="
-                    find . -name mvnw || true
-                '''
             }
         }
 
-        /* =======================
-           BUILD
-        ======================= */
-        stage('Build') {
+        stage('Install Dependencies') {
             steps {
                 sh '''
                     set -eux
-
-                    chmod +x mvnw
-
-                    ./mvnw clean compile
+                    npm ci
                 '''
             }
         }
 
-        /* =======================
-           UNIT TESTS
-        ======================= */
-        stage('Unit Tests') {
+        stage('Tests') {
             steps {
                 sh '''
                     set -eux
-
-                    ./mvnw test
+                    CI=true npm test -- --coverage --watchAll=false
                 '''
             }
         }
 
-        /* =======================
-           INTEGRATION TESTS
-        ======================= */
-        stage('Integration Tests') {
+        stage('Build React') {
             steps {
                 sh '''
                     set -eux
-
-                    ./mvnw verify
+                    npm run build
                 '''
             }
         }
 
-        /* =======================
-           PACKAGE JAR
-        ======================= */
-        stage('Package') {
-            steps {
-                sh '''
-                    set -eux
-
-                    ./mvnw clean package -DskipTests
-                '''
-            }
-        }
-
-        /* =======================
-           DOCKER BUILD
-        ======================= */
         stage('Docker Build') {
             steps {
                 sh '''
                     set -eux
-
                     docker build -t ${IMAGE}:${TAG} .
+                    docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
                 '''
             }
         }
 
-        /* =======================
-           DOCKER PUSH
-        ======================= */
         stage('Docker Push') {
             steps {
                 withCredentials([
@@ -124,9 +75,10 @@ pipeline {
                     sh '''
                         set -eux
 
-                        echo "$DOCKER_PASSWORD" | docker login -u ${REGISTRY} --password-stdin
+                        echo "$DOCKER_PASSWORD" | docker login -u ${DOCKER_USER} --password-stdin
 
                         docker push ${IMAGE}:${TAG}
+                        docker push ${IMAGE}:latest
 
                         docker logout
                     '''
@@ -134,101 +86,48 @@ pipeline {
             }
         }
 
-        /* =======================
-           VERIFY K8S FILES
-        ======================= */
-        stage('Verify K8s Files') {
+        stage('Deploy to K3s') {
             steps {
                 sh '''
                     set -eux
 
-                    ls -R k8s
+                    kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
 
-                    test -d k8s/app
-                    test -f k8s/app/kustomization.yaml
+                    kubectl apply -k ./k8s/app
                 '''
             }
         }
 
-        /* =======================
-           DEPLOY APPLICATION
-        ======================= */
-        stage('Deploy Application (K3s)') {
+        stage('Update Deployment Image') {
             steps {
                 sh '''
                     set -eux
 
-                    kubectl apply -k k8s/app
-
-                    kubectl get pods -n gestion-projet
+                    kubectl set image deployment/react-frontend \
+                    react-frontend=${IMAGE}:${TAG} \
+                    -n ${NAMESPACE}
                 '''
             }
         }
 
-        /* =======================
-           RESTART AUTH SERVICE
-        ======================= */
-        stage('Restart Auth Service') {
+        stage('Rollout Status') {
             steps {
                 sh '''
                     set -eux
 
-                    kubectl rollout restart deployment auth-deployment -n gestion-projet
-
-                    kubectl rollout status deployment auth-deployment -n gestion-projet --timeout=180s
-                '''
-            }
-        }
-
-        /* =======================
-           DEPLOY MONITORING
-        ======================= */
-        stage('Deploy Monitoring') {
-            steps {
-                sh '''
-                    set -eux
-
-                    kubectl apply -k k8s/monitoring
-
-                    kubectl get pods -n monitoring
-
-                    kubectl get pvc -n monitoring
-                '''
-            }
-        }
-
-        /* =======================
-           RESTART MONITORING
-        ======================= */
-        stage('Restart Monitoring') {
-            steps {
-                sh '''
-                    set -eux
-
-                    kubectl rollout restart deployment prometheus -n monitoring
-
-                    kubectl rollout status deployment prometheus -n monitoring --timeout=180s
-
-                    kubectl rollout restart deployment alertmanager -n monitoring
-
-                    kubectl rollout status deployment alertmanager -n monitoring --timeout=180s
-
-                    kubectl rollout restart deployment grafana -n monitoring
-
-                    kubectl rollout status deployment grafana -n monitoring --timeout=180s
+                    kubectl rollout status deployment/react-frontend -n ${NAMESPACE} --timeout=180s
                 '''
             }
         }
     }
 
     post {
-
         success {
-            echo "✅ BUILD + TESTS + DEPLOY + MONITORING SUCCESS 🚀"
+            echo "✅ REACT PIPELINE SUCCESS"
         }
 
         failure {
-            echo "❌ PIPELINE FAILED (Tests / Build / Deploy)"
+            echo "❌ PIPELINE FAILED"
         }
 
         always {
