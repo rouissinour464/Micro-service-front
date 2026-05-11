@@ -1,20 +1,29 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
-// ── Topbar ────────────────────────────────────────────────────
-const ROLE_LABELS = { ADMIN: 'Administrateur', ENCADRANT: 'Enseignant', ETUDIANT: 'Étudiant' };
+// ── Topbar ─────────────────────────────────────────────
+const ROLE_LABELS = {
+  ADMIN: "Administrateur",
+  ENCADRANT: "Enseignant",
+  ETUDIANT: "Étudiant",
+};
 
 export function Topbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const initials = user?.fullName
-    ?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+  const initials =
+    user?.fullName
+      ?.split(" ")
+      .map(w => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?";
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate("/login");
   };
 
   return (
@@ -27,7 +36,9 @@ export function Topbar() {
       <div className="topbar-right">
         <div className="topbar-user-info">
           <div className="topbar-user-name">{user?.fullName}</div>
-          <div className="topbar-user-role">{ROLE_LABELS[user?.role]}</div>
+          <div className="topbar-user-role">
+            {ROLE_LABELS[user?.role]}
+          </div>
         </div>
 
         <Link to="/profile" className="topbar-avatar" title="Mon profil">
@@ -35,11 +46,18 @@ export function Topbar() {
         </Link>
 
         <button className="topbar-logout" onClick={handleLogout}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
           </svg>
           Déconnexion
         </button>
@@ -48,10 +66,15 @@ export function Topbar() {
   );
 }
 
-// ── Alert ─────────────────────────────────────────────────────
-export function Alert({ type = 'error', message }) {
+// ── Alert ─────────────────────────────────────────────
+export function Alert({ type = "error", message }) {
   if (!message) return null;
-  const icons = { error: '⚠', success: '✓' };
+
+  const icons = {
+    error: "⚠",
+    success: "✓",
+  };
+
   return (
     <div className={`alert alert-${type}`}>
       <span className="alert-icon">{icons[type]}</span>
@@ -60,28 +83,44 @@ export function Alert({ type = 'error', message }) {
   );
 }
 
-// ── Spinner ───────────────────────────────────────────────────
+// ── Spinner ───────────────────────────────────────────
 export function Spinner() {
   return <span className="spinner" />;
 }
 
-// ── Role Badge ────────────────────────────────────────────────
-const roleCls = { ADMIN: 'role-badge-admin', ENCADRANT: 'role-badge-encadrant', ETUDIANT: 'role-badge-etudiant' };
-const roleIcons = { ADMIN: '⬡', ENCADRANT: '◈', ETUDIANT: '◉' };
+// ── RoleBadge ─────────────────────────────────────────
+const roleClass = {
+  ADMIN: "role-badge-admin",
+  ENCADRANT: "role-badge-encadrant",
+  ETUDIANT: "role-badge-etudiant",
+};
+
+const roleIcon = {
+  ADMIN: "⬡",
+  ENCADRANT: "◈",
+  ETUDIANT: "◉",
+};
 
 export function RoleBadge({ role }) {
   return (
-    <span className={`role-badge ${roleCls[role] || ''}`}>
-      {roleIcons[role]} {role}
+    <span className={`role-badge ${roleClass[role] || ""}`}>
+      {roleIcon[role]} {role}
     </span>
   );
 }
 
-// ── Brand left panel ──────────────────────────────────────────
-export function BrandPanel({ eyebrow, headline, highlightWord, desc, features, tags }) {
+// ── BrandPanel (auth screens) ─────────────────────────
+export function BrandPanel({
+  eyebrow,
+  headline,
+  highlightWord,
+  desc,
+  features = [],
+  tags = [],
+}) {
   return (
     <div className="auth-panel-left">
-      <div className="brand-top anim-fade-in">
+      <div className="brand-top">
         <div className="brand-logo">
           <div className="brand-logo-icon">⬡</div>
           Iset Tozeur
@@ -89,18 +128,16 @@ export function BrandPanel({ eyebrow, headline, highlightWord, desc, features, t
       </div>
 
       <div className="brand-center">
-        <p className="brand-eyebrow anim-fade-up">{eyebrow}</p>
-        <h1 className="brand-headline anim-fade-up delay-1">
-          {headline}{' '}
-          {highlightWord && <span>{highlightWord}</span>}
+        <p className="brand-eyebrow">{eyebrow}</p>
+        <h1 className="brand-headline">
+          {headline} {highlightWord && <span>{highlightWord}</span>}
         </h1>
-        <p className="brand-desc anim-fade-up delay-2">{desc}</p>
+        <p className="brand-desc">{desc}</p>
 
-        {features?.length > 0 && (
+        {features.length > 0 && (
           <div className="brand-features">
             {features.map((f, i) => (
-              <div className="brand-feature anim-fade-up" key={i}
-                style={{ animationDelay: `${(i + 3) * 0.08}s` }}>
+              <div key={i} className="brand-feature">
                 <span className="brand-feature-dot" />
                 {f}
               </div>
@@ -109,16 +146,23 @@ export function BrandPanel({ eyebrow, headline, highlightWord, desc, features, t
         )}
       </div>
 
-      <div className="brand-bottom anim-fade-in delay-5">
-        {tags?.map((t, i) => <span key={i} className="brand-tag">{t}</span>)}
+      <div className="brand-bottom">
+        {tags.map((t, i) => (
+          <span key={i} className="brand-tag">
+            {t}
+          </span>
+        ))}
       </div>
     </div>
   );
 }
 
-// ── Skeleton loader ───────────────────────────────────────────
-export function SkeletonBlock({ h = 20, w = '100%', mb = 12 }) {
+// ── Skeleton loader ──────────────────────────────────
+export function SkeletonBlock({ h = 20, w = "100%", mb = 12 }) {
   return (
-    <div className="skeleton" style={{ height: h, width: w, marginBottom: mb }} />
+    <div
+      className="skeleton"
+      style={{ height: h, width: w, marginBottom: mb }}
+    />
   );
 }

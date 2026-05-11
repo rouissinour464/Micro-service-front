@@ -10,7 +10,7 @@ const baseStyle = {
   textDecoration: "none",
 };
 
-function AdminLink({ to, label, icon }) {
+function EncadrantLink({ to, label, icon }) {
   return (
     <NavLink
       to={to}
@@ -25,7 +25,7 @@ function AdminLink({ to, label, icon }) {
   );
 }
 
-export default function AdminNavbar() {
+export default function EncadrantNavbar() {
   return (
     <div
       style={{
@@ -39,14 +39,29 @@ export default function AdminNavbar() {
       }}
     >
       <div style={{ display: "flex", gap: 10 }}>
-        <AdminLink to="/admin/create" icon="➕" label="Créer utilisateur" />
-        <AdminLink to="/admin/list" icon="👥" label="Liste utilisateurs" />
+        <EncadrantLink
+          to="/encadrant"
+          icon="📊"
+          label="Dashboard"
+        />
+        <EncadrantLink
+          to="/encadrant/etudiants"
+          icon="🎓"
+          label="Mes étudiants"
+        />
       </div>
 
       <div style={{ display: "flex", gap: 10 }}>
-        <AdminLink to="/admin/offres" icon="🏢" label="Offres" />
-        <AdminLink to="/admin/demandes" icon="📝" label="Demandes" />
-        <AdminLink to="/admin/soutenances" icon="🎤" label="Soutenances" />
+        <EncadrantLink
+          to="/encadrant/livrables"
+          icon="📁"
+          label="Livrables"
+        />
+        <EncadrantLink
+          to="/encadrant/soutenances"
+          icon="🎤"
+          label="Soutenances"
+        />
       </div>
     </div>
   );

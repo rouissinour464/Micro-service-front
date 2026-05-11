@@ -23,7 +23,7 @@ export default function UsersListPage() {
     password: "",
   });
 
-  // ✅ Charger les utilisateurs (sans ADMIN)
+  // ── Charger les utilisateurs (sans ADMIN) ───────────
   const loadUsers = async () => {
     try {
       setLoading(true);
@@ -40,7 +40,7 @@ export default function UsersListPage() {
     loadUsers();
   }, []);
 
-  // ✅ Recherche
+  // ── Recherche ───────────────────────────────────────
   const onSearch = async (e) => {
     e.preventDefault();
     try {
@@ -57,7 +57,7 @@ export default function UsersListPage() {
     }
   };
 
-  // ✅ Supprimer
+  // ── Supprimer ───────────────────────────────────────
   const onDelete = async (id) => {
     if (!window.confirm("Supprimer cet utilisateur ?")) return;
     try {
@@ -68,7 +68,7 @@ export default function UsersListPage() {
     }
   };
 
-  // ✅ Activer édition
+  // ── Activer édition ─────────────────────────────────
   const startEdit = (u) => {
     setEditingId(u.id);
     setShowPass(false);
@@ -79,7 +79,7 @@ export default function UsersListPage() {
     });
   };
 
-  // ✅ Enregistrer modification
+  // ── Enregistrer modification ───────────────────────
   const saveEdit = async (id) => {
     try {
       const payload = {
@@ -98,7 +98,7 @@ export default function UsersListPage() {
   };
 
   return (
-    <div className="card anim-fade-up">
+    <div className="card">
       <div className="card-header">
         <div className="card-icon">📄</div>
         <div>
@@ -111,7 +111,7 @@ export default function UsersListPage() {
 
       {alert.msg && <Alert type={alert.type} message={alert.msg} />}
 
-      {/* ✅ Recherche */}
+      {/* Recherche */}
       <form onSubmit={onSearch} style={{ marginBottom: 16 }}>
         <input
           className="form-input"
@@ -135,7 +135,7 @@ export default function UsersListPage() {
               }}
             >
               {editingId === u.id ? (
-                // ✅ MODE MODIFICATION INLINE
+                // ── MODE ÉDITION ──────────────────────
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <input
                     className="form-input"
@@ -155,12 +155,10 @@ export default function UsersListPage() {
                     }
                   />
 
-                  {/* ✅ MOT DE PASSE AVEC TOGGLE */}
+                  {/* Mot de passe avec toggle */}
                   <div style={{ position: "relative", minWidth: 240 }}>
                     <input
-                      className={`form-input ${
-                        alert.type === "error" ? "input-error" : ""
-                      }`}
+                      className="form-input"
                       type={showPass ? "text" : "password"}
                       placeholder="Nouveau mot de passe (optionnel)"
                       value={editForm.password}
@@ -185,7 +183,6 @@ export default function UsersListPage() {
                         border: "none",
                         cursor: "pointer",
                         color: "var(--text-muted)",
-                        fontSize: 16,
                       }}
                       title={
                         showPass
@@ -212,7 +209,7 @@ export default function UsersListPage() {
                   </button>
                 </div>
               ) : (
-                // ✅ MODE AFFICHAGE
+                // ── MODE AFFICHAGE ───────────────────
                 <div
                   style={{
                     display: "flex",
@@ -222,12 +219,7 @@ export default function UsersListPage() {
                 >
                   <div>
                     <div style={{ fontWeight: 600 }}>{u.fullName}</div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text-muted)",
-                      }}
-                    >
+                    <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
                       {u.email}
                     </div>
                   </div>

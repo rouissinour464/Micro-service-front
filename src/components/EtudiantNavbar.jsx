@@ -10,7 +10,7 @@ const baseStyle = {
   textDecoration: "none",
 };
 
-function AdminLink({ to, label, icon }) {
+function EtudiantLink({ to, label, icon }) {
   return (
     <NavLink
       to={to}
@@ -25,7 +25,7 @@ function AdminLink({ to, label, icon }) {
   );
 }
 
-export default function AdminNavbar() {
+export default function EtudiantNavbar() {
   return (
     <div
       style={{
@@ -39,14 +39,14 @@ export default function AdminNavbar() {
       }}
     >
       <div style={{ display: "flex", gap: 10 }}>
-        <AdminLink to="/admin/create" icon="➕" label="Créer utilisateur" />
-        <AdminLink to="/admin/list" icon="👥" label="Liste utilisateurs" />
+        <EtudiantLink to="/etudiant" icon="🏠" label="Accueil" />
+        <EtudiantLink to="/etudiant/offres" icon="🏢" label="Offres" />
+        <EtudiantLink to="/etudiant/demandes" icon="📝" label="Mes demandes" />
       </div>
 
       <div style={{ display: "flex", gap: 10 }}>
-        <AdminLink to="/admin/offres" icon="🏢" label="Offres" />
-        <AdminLink to="/admin/demandes" icon="📝" label="Demandes" />
-        <AdminLink to="/admin/soutenances" icon="🎤" label="Soutenances" />
+        <EtudiantLink to="/etudiant/livrables" icon="📁" label="Livrables" />
+        <EtudiantLink to="/etudiant/soutenance" icon="🎤" label="Soutenance" />
       </div>
     </div>
   );

@@ -27,16 +27,13 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // login() : appel API → setUser() → retourne profil
       const profile = await login({
         email: form.email,
         password: form.password,
       });
 
-      // ✅ navigate après que setUser() soit terminé
       const route = ROLE_ROUTE[profile.role] || "/";
       navigate(route, { replace: true });
-
     } catch (err) {
       setError(extractError(err));
       setLoading(false);
@@ -46,7 +43,7 @@ export default function LoginPage() {
   return (
     <div className="auth-shell">
       <BrandPanel
-        eyebrow="Plateforme des Gestion Des Stages / PFEs"
+        eyebrow="Plateforme de Gestion des Stages / PFEs"
         headline="Accédez à votre Espace"
         desc="Connectez-vous pour accéder à votre espace."
       />
@@ -54,9 +51,9 @@ export default function LoginPage() {
       <div className="auth-panel-right">
         <div className="auth-form-wrap">
           <div className="auth-form-header">
-            <p className="auth-form-eyebrow anim-fade-up">Bienvenue</p>
-            <h2 className="auth-form-title anim-fade-up delay-1">Connexion</h2>
-            <p className="auth-form-sub anim-fade-up delay-2">
+            <p className="auth-form-eyebrow">Bienvenue</p>
+            <h2 className="auth-form-title">Connexion</h2>
+            <p className="auth-form-sub">
               Entrez vos identifiants.
             </p>
           </div>
@@ -64,21 +61,22 @@ export default function LoginPage() {
           <Alert type="error" message={error} />
 
           <form onSubmit={submit}>
-            <div className="form-group anim-fade-up delay-2">
+            <div className="form-group">
               <label className="form-label">Adresse email</label>
               <input
                 className="form-input"
                 type="email"
                 value={form.email}
                 onChange={set("email")}
-                placeholder="vous@universite.dz"
+                placeholder="vous@universite.tn"
                 required
                 disabled={loading}
               />
             </div>
 
-            <div className="form-group anim-fade-up delay-3">
+            <div className="form-group">
               <label className="form-label">Mot de passe</label>
+
               <div style={{ position: "relative" }}>
                 <input
                   className="form-input"
@@ -90,6 +88,7 @@ export default function LoginPage() {
                   disabled={loading}
                   style={{ paddingRight: 48 }}
                 />
+
                 <button
                   type="button"
                   onClick={() => setShowPass((s) => !s)}
@@ -103,6 +102,7 @@ export default function LoginPage() {
                     cursor: "pointer",
                     color: "var(--text-muted)",
                   }}
+                  aria-label="Afficher / masquer le mot de passe"
                 >
                   {showPass ? "🙈" : "👁"}
                 </button>
@@ -111,16 +111,16 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="btn btn-primary anim-fade-up delay-4"
+              className="btn btn-primary"
               disabled={loading}
             >
               {loading ? <Spinner /> : "Se connecter"}
             </button>
           </form>
 
-          <div className="divider anim-fade-up delay-5">ou</div>
+          <div className="divider">ou</div>
 
-          <div className="auth-switch anim-fade-up delay-5">
+          <div className="auth-switch">
             Administrateur ?{" "}
             <Link to="/register/admin" className="auth-link">
               Créer un compte admin →

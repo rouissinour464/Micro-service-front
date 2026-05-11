@@ -3,11 +3,18 @@ kind: Service
 metadata:
   name: frontend-auth
   namespace: gestion-projet
+  labels:
+    app: frontend-auth
 spec:
   type: NodePort
   selector:
     app: frontend-auth
   ports:
-    - port: 80
+    - name: http
+      port: 80
       targetPort: 80
       nodePort: 30081
+
+    - name: metrics
+      port: 9113
+      targetPort: 9113

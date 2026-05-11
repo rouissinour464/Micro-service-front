@@ -9,12 +9,12 @@ import {
 
 const AuthContext = createContext(null);
 
-// ✅ extractError — affiche les VRAIS messages backend
+// ✅ extractError — affiche les vrais messages backend
 export const extractError = (err) => {
   const data = err?.response?.data;
   if (!data) return "Une erreur est survenue.";
 
-  if (data.error) return data.error;       // ✅ Email déjà utilisé
+  if (data.error) return data.error;       // ex: email déjà utilisé
   if (data.message) return data.message;
   if (data.details) return Object.values(data.details).join(" • ");
 
@@ -32,12 +32,16 @@ export function AuthProvider({ children }) {
     }
   });
 
-  const normalizeRole = (role) => role.replace("ROLE_", "");
+  const normalizeRole = (role) =>
+    role?.startsWith("ROLE_") ? role.replace("ROLE_", "") : role;
 
   // ✅ LOGIN
   const login = useCallback(async ({ email, password }) => {
     const res = await loginUser({ email, password });
-    if (!res.token) throw new Error("Identifiants invalides.");
+
+    if (!res?.token) {
+      throw new Error("Identifiants invalides.");
+    }
 
     const cleanRole = normalizeRole(res.role);
 
@@ -56,7 +60,10 @@ export function AuthProvider({ children }) {
   // ✅ REGISTER ADMIN
   const registerAdminAction = useCallback(async (payload) => {
     const res = await registerAdmin(payload);
-    if (!res.token) throw new Error("Erreur lors de la création du compte.");
+
+    if (!res?.token) {
+      throw new Error("Erreur lors de la création du compte.");
+    }
 
     const cleanRole = normalizeRole(res.role);
 
@@ -79,6 +86,7 @@ export function AuthProvider({ children }) {
 
     localStorage.setItem("user", JSON.stringify(profile));
     setUser(profile);
+
     return profile;
   }, []);
 
@@ -93,7 +101,7 @@ export function AuthProvider({ children }) {
     return updated;
   }, []);
 
-  // ✅ CREATE USER (teacher/student)
+  // ✅ CREATE USER (teacher / student)
   const createUserAction = useCallback(async (data) => {
     return await createUser(data);
   }, []);
@@ -123,8 +131,11 @@ export function AuthProvider({ children }) {
   );
 }
 
+// ✅ Hook sécurisé
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
+  if (!ctx) {
+    throw new Error("useAuth must be used inside <AuthProvider>");
+  }
   return ctx;
 };

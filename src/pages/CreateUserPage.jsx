@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuth, extractError } from "../context/AuthContext";
-import { Alert, Spinner, RoleBadge } from "../components/UI";
+import { Alert, Spinner } from "../components/UI";
 
 const ROLES = [
   { value: "ENCADRANT", label: "◈ Enseignant (ENCADRANT)" },
@@ -27,8 +27,9 @@ export default function CreateUserPage() {
   const [alert, setAlert] = useState({ type: "", msg: "" });
   const [showPass, setShowPass] = useState(false);
 
+  // Setter générique
   const set = (field) => (e) =>
-    setForm((f) => ({ ...f, [field]: e.target.value })); // ✅ clé dynamique
+    setForm((f) => ({ ...f, [field]: e.target.value }));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -51,11 +52,12 @@ export default function CreateUserPage() {
       });
 
       setForm(EMPTY_FORM);
+      setShowPass(false);
     } catch (err) {
       setAlert({ type: "error", msg: extractError(err) });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -73,7 +75,7 @@ export default function CreateUserPage() {
       {alert.msg && <Alert type={alert.type} message={alert.msg} />}
 
       <form onSubmit={submit}>
-        {/* FULL NAME + EMAIL */}
+        {/* NOM + EMAIL */}
         <div className="form-row-2">
           <div className="form-group">
             <label className="form-label">Nom complet</label>
@@ -97,7 +99,7 @@ export default function CreateUserPage() {
           </div>
         </div>
 
-        {/* PASSWORD + ROLE */}
+        {/* MOT DE PASSE + RÔLE */}
         <div className="form-row-2">
           <div className="form-group">
             <label className="form-label">Mot de passe</label>
@@ -123,6 +125,7 @@ export default function CreateUserPage() {
                   border: "none",
                   cursor: "pointer",
                 }}
+                aria-label="Afficher / masquer le mot de passe"
               >
                 {showPass ? "🙈" : "👁"}
               </button>

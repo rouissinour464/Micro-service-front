@@ -9,9 +9,25 @@
     "axios": "^1.6.0",
     "react-scripts": "5.0.1"
   },
+  "devDependencies": {
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/user-event": "^14.5.2",
+    "msw": "^2.2.13"
+  },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "test": "react-scripts test --watchAll=false",
+    "test:coverage": "react-scripts test --watchAll=false --coverage --coverageReporters=text"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "src/services/stageService.js",
+      "src/pages/EtudiantDashboard.js",
+      "src/pages/EncadrantDashboard.js",
+      "src/pages/AdminDashboard.js"
+    ]
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],

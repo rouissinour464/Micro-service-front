@@ -1,53 +1,151 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+        timestamps()
+    }
+
     triggers {
-        cron('H/10 * * * *')
+        githubPush()
+        cron('H */6 * * *')
+    }
+
+    tools {
+        jdk 'JDK21'
     }
 
     environment {
         REGISTRY   = "nour292"
-        IMAGE      = "${REGISTRY}/frontend-auth"
+        IMAGE      = "${REGISTRY}/auth-service"
         TAG        = "latest"
         KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
 
     stages {
 
+        /* =======================
+           SOURCE CODE
+        ======================= */
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
+        /* =======================
+           BUILD
+        ======================= */
+        stage('Build') {
+            steps {
+                sh '''
+                    set -eux
+                    chmod +x mvnw
+                    ./mvnw clean compile
+                '''
+            }
+        }
+
+        /* =======================
+           TESTS UNITAIRES
+        ======================= */
+        stage('Unit Tests') {
+            steps {
+                sh '''
+                    set -eux
+                    ./mvnw test
+                '''
+            }
+        }
+
+        /* =======================
+           TESTS D’INTEGRATION
+        ======================= */
+        stage('Integration Tests') {
+            steps {
+                sh '''
+                    set -eux
+                    ./mvnw verify
+                '''
+            }
+        }
+
+        /* =======================
+           DOCKER
+        ======================= */
         stage('Docker Build') {
             steps {
-                sh "docker build -t ${IMAGE}:${TAG} ."
+                sh '''
+                    set -eux
+                    docker build -t ${IMAGE}:${TAG} .
+                '''
             }
         }
 
         stage('Docker Push') {
             steps {
-                withCredentials([string(credentialsId: 'dockerhub-pass', variable: 'DOCKER_PASSWORD')]) {
-                    sh "echo $DOCKER_PASSWORD | docker login -u ${REGISTRY} --password-stdin"
-                    sh "docker push ${IMAGE}:${TAG}"
+                withCredentials([
+                    string(credentialsId: 'dockerhub-pass', variable: 'DOCKER_PASSWORD')
+                ]) {
+                    sh '''
+                        set -eux
+                        echo "$DOCKER_PASSWORD" | docker login -u nour292 --password-stdin
+                        docker push ${IMAGE}:${TAG}
+                        docker logout
+                    '''
                 }
             }
         }
 
-        stage('Deploy to K3s (Kustomize)') {
+        /* =======================
+           APPLICATION DEPLOY
+        ======================= */
+        stage('Deploy Application (K3s)') {
             steps {
                 sh '''
-                    echo "Using kubeconfig: $KUBECONFIG"
-                    kubectl apply -k k8s
+                    set -eux
+                    kubectl apply -k k8s/app
+                    kubectl get pods -n gestion-projet
                 '''
             }
         }
 
-        stage('Rollout Restart') {
+        stage('Restart Auth Service') {
             steps {
                 sh '''
-                    kubectl rollout restart deployment frontend-auth -n gestion-projet
+                    set -eux
+                    kubectl rollout restart deployment auth-deployment -n gestion-projet
+                    kubectl rollout status deployment auth-deployment -n gestion-projet --timeout=180s
+                '''
+            }
+        }
+
+        /* =======================
+           MONITORING STACK
+        ======================= */
+        stage('Deploy Monitoring') {
+            steps {
+                sh '''
+                    set -eux
+                    kubectl apply -k k8s/monitoring
+                    kubectl get pods -n monitoring
+                    kubectl get pvc -n monitoring
+                '''
+            }
+        }
+
+        stage('Restart Monitoring') {
+            steps {
+                sh '''
+                    set -eux
+                    kubectl rollout restart deployment prometheus -n monitoring
+                    kubectl rollout status deployment prometheus -n monitoring --timeout=180s
+
+                    kubectl rollout restart deployment alertmanager -n monitoring
+                    kubectl rollout status deployment alertmanager -n monitoring --timeout=180s
+
+                    kubectl rollout restart deployment grafana -n monitoring
+                    kubectl rollout status deployment grafana -n monitoring --timeout=180s
                 '''
             }
         }
@@ -55,10 +153,13 @@ pipeline {
 
     post {
         success {
-            echo "✅ FRONTEND DEPLOYED SUCCESSFULLY 🎉"
+            echo "✅ BUILD + TESTS + DEPLOY + MONITORING SUCCESS 🚀"
         }
         failure {
-            echo "❌ FRONTEND FAILED — CHECK LOGS"
+            echo "❌ PIPELINE FAILED (Tests / Build / Deploy)"
+        }
+        always {
+            cleanWs()
         }
     }
 }
