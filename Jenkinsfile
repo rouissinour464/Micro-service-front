@@ -1,72 +1,85 @@
 pipeline {
     agent any
 
-    options {
-        skipDefaultCheckout(true)
-        timestamps()
-    }
-
     triggers {
         githubPush()
-        cron('H */6 * * *')
-    }
-
-    tools {
-        nodejs 'NODE18'
     }
 
     environment {
-        DOCKER_USER = "nour292"
-        IMAGE       = "nour292/react-frontend"
-        TAG         = "${BUILD_NUMBER}"
-        NAMESPACE   = "gestion-projet"
+        REGISTRY   = "nour292"
+        IMAGE      = "${REGISTRY}/frontend-auth"
+        TAG        = "latest"
+        NAMESPACE  = "gestion-projet"
+    }
+
+    options {
+        timestamps()
     }
 
     stages {
 
+        /* =======================
+           CHECKOUT
+        ======================= */
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Install Dependencies') {
+        /* =======================
+           INSTALL + TESTS (Docker Node)
+        ======================= */
+        stage('Install & Test') {
             steps {
                 sh '''
                     set -eux
-                    npm ci
+
+                    docker run --rm \
+                      -v "$PWD:/app" \
+                      -w /app \
+                      node:20-alpine \
+                      sh -c "
+                        npm install &&
+                        npm run test -- --watchAll=false
+                      "
                 '''
             }
         }
 
-        stage('Tests') {
-            steps {
-                sh '''
-                    set -eux
-                    CI=true npm test -- --coverage --watchAll=false
-                '''
-            }
-        }
-
+        /* =======================
+           BUILD REACT
+        ======================= */
         stage('Build React') {
             steps {
                 sh '''
                     set -eux
-                    npm run build
+
+                    docker run --rm \
+                      -v "$PWD:/app" \
+                      -w /app \
+                      node:20-alpine \
+                      sh -c "npm install && npm run build"
                 '''
             }
         }
 
+        /* =======================
+           DOCKER BUILD
+        ======================= */
         stage('Docker Build') {
             steps {
                 sh '''
                     set -eux
+
                     docker build -t ${IMAGE}:${TAG} .
-                    docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
                 '''
             }
         }
 
+        /* =======================
+           DOCKER PUSH
+        ======================= */
         stage('Docker Push') {
             steps {
                 withCredentials([
@@ -75,10 +88,9 @@ pipeline {
                     sh '''
                         set -eux
 
-                        echo "$DOCKER_PASSWORD" | docker login -u ${DOCKER_USER} --password-stdin
+                        echo "$DOCKER_PASSWORD" | docker login -u ${REGISTRY} --password-stdin
 
                         docker push ${IMAGE}:${TAG}
-                        docker push ${IMAGE}:latest
 
                         docker logout
                     '''
@@ -86,36 +98,19 @@ pipeline {
             }
         }
 
+        /* =======================
+           DEPLOY K3S
+        ======================= */
         stage('Deploy to K3s') {
             steps {
                 sh '''
                     set -eux
 
-                    kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                    kubectl apply -k k8s/app
 
-                    kubectl apply -k ./k8s/app
-                '''
-            }
-        }
+                    kubectl rollout restart deployment frontend-auth -n ${NAMESPACE}
 
-        stage('Update Deployment Image') {
-            steps {
-                sh '''
-                    set -eux
-
-                    kubectl set image deployment/react-frontend \
-                    react-frontend=${IMAGE}:${TAG} \
-                    -n ${NAMESPACE}
-                '''
-            }
-        }
-
-        stage('Rollout Status') {
-            steps {
-                sh '''
-                    set -eux
-
-                    kubectl rollout status deployment/react-frontend -n ${NAMESPACE} --timeout=180s
+                    kubectl rollout status deployment frontend-auth -n ${NAMESPACE} --timeout=180s
                 '''
             }
         }
@@ -123,7 +118,7 @@ pipeline {
 
     post {
         success {
-            echo "✅ REACT PIPELINE SUCCESS"
+            echo "✅ FRONTEND PIPELINE SUCCESS (BUILD + TEST + DEPLOY)"
         }
 
         failure {
