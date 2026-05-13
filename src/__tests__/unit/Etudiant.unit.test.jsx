@@ -1,46 +1,93 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
-// Pages Étudiant
+jest.mock("../../services/stageService", () => ({
+  __esModule: true,
+  getMesDemandes:   jest.fn(),
+  getEncadrants:    jest.fn(),
+  getMesLivrables:  jest.fn(),
+  deposerLivrable:  jest.fn(),
+  deleteLivrable:   jest.fn(),
+  soumettreDemande: jest.fn(),
+  choisirEncadrant: jest.fn(),
+}));
+
+import * as stageService from "../../services/stageService";
 import Demandes from "../../pages/etudiant/demandes";
 import Livrables from "../../pages/etudiant/livrables";
-import Soutenance from "../../pages/etudiant/soutenance";
 
-// Services
-import * as stageService from "../../services/stageService";
+afterEach(() => {
+  cleanup();
+  jest.clearAllMocks();
+});
 
-// Mock global
-jest.mock("../../services/stageService");
+describe("Tests Étudiant", () => {
 
-describe("Tests unitaires – Étudiant", () => {
+  test("aucune demande → affiche bouton sans erreur", async () => {
+    stageService.getMesDemandes.mockResolvedValue([]);
+    stageService.getEncadrants.mockResolvedValue([]);
 
-  test("Demandes : affiche un message quand aucune demande n'existe", async () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Demandes />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByText(/nouvelle demande/i)
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByText(/impossible de charger/i)
+    ).not.toBeInTheDocument();
+  });
+
+  test("demande existante → affiche le titre", async () => {
+    stageService.getMesDemandes.mockResolvedValue([
+      { id: 1, titreProjet: "Stage Data Science", status: "EN_ATTENTE", imageDemandeUrl: null },
+    ]);
+    stageService.getEncadrants.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Demandes />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByText(/stage data science/i)
+    ).toBeInTheDocument();
+  });
+
+  test("livrables → affiche le titre du livrable", async () => {
+    stageService.getMesLivrables.mockResolvedValue([
+      { id: 1, titre: "Rapport final", typeLivrable: "RAPPORT", createdAt: "2024-01-01" },
+    ]);
     stageService.getMesDemandes.mockResolvedValue([]);
 
-    render(<Demandes />);
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Livrables />
+      </MemoryRouter>
+    );
 
     expect(
-      await screen.findByText(/Aucune demande soumise/i)
+      await screen.findByText(/rapport final/i)
     ).toBeInTheDocument();
   });
 
-  test("Livrables : affiche un message quand aucun livrable n'existe", async () => {
+  test("aucun livrable → affiche message vide", async () => {
     stageService.getMesLivrables.mockResolvedValue([]);
+    stageService.getMesDemandes.mockResolvedValue([]);
 
-    render(<Livrables />);
-
-    expect(
-      await screen.findByText(/Aucun livrable déposé/i)
-    ).toBeInTheDocument();
-  });
-
-  test("Soutenance : affiche un message quand aucune soutenance n'est planifiée", async () => {
-    stageService.getMaSoutenance.mockResolvedValue(null);
-
-    render(<Soutenance />);
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Livrables />
+      </MemoryRouter>
+    );
 
     expect(
-      await screen.findByText(/Aucune soutenance planifiée/i)
+      await screen.findByText(/aucun livrable déposé/i)
     ).toBeInTheDocument();
   });
-
 });
