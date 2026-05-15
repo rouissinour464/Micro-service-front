@@ -1,37 +1,50 @@
+// src/App.jsx
+
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
-/* ───────────── PUBLIC ───────────── */
-import LoginPage from "./pages/LoginPage";
+/* ── Public ─────────────────────────────────────────────────── */
+import LoginPage         from "./pages/LoginPage";
 import RegisterAdminPage from "./pages/RegisterAdminPage";
-import ProfilePage from "./pages/ProfilePage";
+import ProfilePage       from "./pages/ProfilePage";
 
-/* ───────────── ADMIN ───────────── */
-import AdminDashboard from "./pages/AdminDashboard";
-import CreateUserPage from "./pages/CreateUserPage";
-import UsersListPage from "./pages/UsersListPage";
-import AdminOffres from "./pages/admin/AdminOffres";
-import AdminDemandes from "./pages/admin/AdminDemandes";
+/* ── Admin ──────────────────────────────────────────────────── */
+import AdminDashboard  from "./pages/AdminDashboard";
+import CreateUserPage  from "./pages/CreateUserPage";
+import UsersListPage   from "./pages/UsersListPage";
+import AdminOffres     from "./pages/admin/AdminOffres";
+import AdminDemandes   from "./pages/admin/AdminDemandes";
 import AdminSoutenances from "./pages/admin/AdminSoutenances";
 
-/* ───────────── ENCADRANT ───────────── */
-import EncadrantDashboard from "./pages/EncadrantDashboard";
-import Encadrements from "./pages/encadrant/encadrements";
-import LivrablesEncadrant from "./pages/encadrant/livrables";
+/* ── Encadrant ──────────────────────────────────────────────── */
+import EncadrantDashboard  from "./pages/EncadrantDashboard";
+import Encadrements        from "./pages/encadrant/encadrements";
+import LivrablesEncadrant  from "./pages/encadrant/livrables";
 import SoutenancesEncadrant from "./pages/encadrant/soutenances";
+import LivrableDetail      from "./pages/encadrant/LivrableDetail";
 
-/* ───────────── ÉTUDIANT ───────────── */
-import EtudiantDashboard from "./pages/EtudiantDashboard";
-import OffresEtudiant from "./pages/etudiant/offres";
-import DemandesEtudiant from "./pages/etudiant/demandes";
-import LivrablesEtudiant from "./pages/etudiant/livrables";
+/* ── Étudiant ───────────────────────────────────────────────── */
+import EtudiantDashboard  from "./pages/EtudiantDashboard";
+import OffresEtudiant     from "./pages/etudiant/offres";
+import DemandesEtudiant   from "./pages/etudiant/demandes";
+import LivrablesEtudiant  from "./pages/etudiant/livrables";
 import SoutenanceEtudiant from "./pages/etudiant/soutenance";
 
-/* ───────────── LIVRABLE DÉTAIL (COMMUN) ───────────── */
-import LivrableDetail from "./pages/encadrant/LivrableDetail";
+// =========================================================
+// ROUTE PROTÉGÉE
+// =========================================================
 
-/* ───────────── ROUTE PROTÉGÉE ───────────── */
+/**
+ * Redirige vers /login si non connecté.
+ * Redirige vers / (RoleRedirect) si le rôle n'est pas autorisé.
+ */
 function ProtectedRoute({ children, roles }) {
   const { user } = useAuth();
 
@@ -46,33 +59,37 @@ function ProtectedRoute({ children, roles }) {
   return children;
 }
 
-/* ───────────── REDIRECTION PAR RÔLE ───────────── */
+// =========================================================
+// REDIRECTION PAR RÔLE
+// =========================================================
+
 function RoleRedirect() {
   const { user } = useAuth();
 
   if (!user) return <Navigate to="/login" replace />;
 
-  return (
-    <Navigate
-      to={{
-        ADMIN: "/admin",
-        ENCADRANT: "/encadrant",
-        ETUDIANT: "/etudiant",
-      }[user.role]}
-      replace
-    />
-  );
+  const routes = {
+    ADMIN:     "/admin",
+    ENCADRANT: "/encadrant",
+    ETUDIANT:  "/etudiant",
+  };
+
+  return <Navigate to={routes[user.role] ?? "/login"} replace />;
 }
 
-/* ───────────── ROUTES ───────────── */
+// =========================================================
+// ROUTES
+// =========================================================
+
 function AppRoutes() {
   return (
     <Routes>
-      {/* PUBLIC */}
-      <Route path="/login" element={<LoginPage />} />
+
+      {/* ── Public ── */}
+      <Route path="/login"          element={<LoginPage />} />
       <Route path="/register/admin" element={<RegisterAdminPage />} />
 
-      {/* LIVRABLE DÉTAIL (ÉTUDIANT + ENCADRANT) */}
+      {/* ── Livrable Détail (étudiant + encadrant) ── */}
       <Route
         path="/livrables/:livrableId"
         element={
@@ -82,7 +99,7 @@ function AppRoutes() {
         }
       />
 
-      {/* ADMIN */}
+      {/* ── Admin ── */}
       <Route
         path="/admin"
         element={
@@ -91,15 +108,15 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="offres" replace />} />
-        <Route path="create" element={<CreateUserPage />} />
-        <Route path="list" element={<UsersListPage />} />
-        <Route path="offres" element={<AdminOffres />} />
-        <Route path="demandes" element={<AdminDemandes />} />
-        <Route path="soutenances" element={<AdminSoutenances />} />
+        <Route index                   element={<Navigate to="offres" replace />} />
+        <Route path="create"           element={<CreateUserPage />} />
+        <Route path="list"             element={<UsersListPage />} />
+        <Route path="offres"           element={<AdminOffres />} />
+        <Route path="demandes"         element={<AdminDemandes />} />
+        <Route path="soutenances"      element={<AdminSoutenances />} />
       </Route>
 
-      {/* ENCADRANT */}
+      {/* ── Encadrant ── */}
       <Route
         path="/encadrant"
         element={
@@ -108,13 +125,13 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Encadrements />} />
-        <Route path="etudiants" element={<Encadrements />} />
-        <Route path="livrables" element={<LivrablesEncadrant />} />
+        <Route index             element={<Encadrements />} />
+        <Route path="etudiants"  element={<Encadrements />} />
+        <Route path="livrables"  element={<LivrablesEncadrant />} />
         <Route path="soutenances" element={<SoutenancesEncadrant />} />
       </Route>
 
-      {/* ÉTUDIANT */}
+      {/* ── Étudiant ── */}
       <Route
         path="/etudiant"
         element={
@@ -123,14 +140,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<OffresEtudiant />} />
-        <Route path="offres" element={<OffresEtudiant />} />
-        <Route path="demandes" element={<DemandesEtudiant />} />
-        <Route path="livrables" element={<LivrablesEtudiant />} />
+        <Route index             element={<OffresEtudiant />} />
+        <Route path="offres"     element={<OffresEtudiant />} />
+        <Route path="demandes"   element={<DemandesEtudiant />} />
+        <Route path="livrables"  element={<LivrablesEtudiant />} />
         <Route path="soutenance" element={<SoutenanceEtudiant />} />
       </Route>
 
-      {/* PROFIL */}
+      {/* ── Profil (tous rôles connectés) ── */}
       <Route
         path="/profile"
         element={
@@ -140,13 +157,17 @@ function AppRoutes() {
         }
       />
 
-      {/* FALLBACK */}
+      {/* ── Fallback ── */}
       <Route path="*" element={<RoleRedirect />} />
+
     </Routes>
   );
 }
 
-/* ───────────── APP ───────────── */
+// =========================================================
+// APP ROOT
+// =========================================================
+
 export default function App() {
   return (
     <AuthProvider>

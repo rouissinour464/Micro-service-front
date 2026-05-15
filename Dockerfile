@@ -1,11 +1,12 @@
 # ======= BUILD REACT =======
-FROM node:18 AS build
+FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 COPY . .
+COPY .env.production .env
 RUN npm run build
 
 # ======= NGINX SERVER =======

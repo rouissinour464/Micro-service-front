@@ -2,10 +2,12 @@ import axios from "axios";
 
 // ✅ Instance Axios pointant vers l'API Gateway
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL, // ex: http://localhost:8080/api
+  baseURL: process.env.REACT_APP_API_URL, // http://localhost:8080/api
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // ✅ OK avec ton CORS Gateway
+  timeout: 15000,
 });
 
 // ✅ Intercepteur REQUEST : injecter automatiquement le token JWT
@@ -38,7 +40,7 @@ export const authApi = {
   logout: () => api.post("/auth/logout"),
 };
 
-// ✅ API USERS (admin)
+// ✅ API USERS
 export const usersApi = {
   create: (data) => api.post("/users", data),
 };
