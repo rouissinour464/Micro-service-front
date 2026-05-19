@@ -12,7 +12,7 @@ pipeline {
     environment {
         REGISTRY   = "nour292"
         IMAGE      = "${REGISTRY}/frontend-auth"
-        TAG        = "${BUILD_NUMBER}"
+        TAG        = "${BUILD_NUMBER}"   // ✅ versionné
         NAMESPACE  = "gestion-projet"
     }
 
@@ -34,33 +34,37 @@ pipeline {
                     docker run --rm \
                       -v "$PWD:/app" \
                       -w /app \
-                      node:20 \
+                      node:20-alpine \
                       sh -c "
-                        if [ -f package-lock.json ]; then
-                          echo '✅ Using npm ci'
-                          npm ci
-                        else
-                          echo '⚠️ No lock file → using npm install'
-                          npm install
-                        fi
-
-                        npm run test -- --watchAll=false || echo 'No tests found'
+                        npm ci &&
+                        npm run test -- --watchAll=false
                       "
                 '''
             }
         }
 
-        /* ✅ DOCKER BUILD & PUSH */
-        stage('Docker Build & Push') {
+        /* ✅ DOCKER BUILD (fait le build React) */
+        stage('Docker Build') {
             steps {
-                withCredentials([string(credentialsId: 'dockerhub-pass', variable: 'DOCKER_PASSWORD')]) {
+                sh '''
+                    set -eux
+
+                    docker build -t ${IMAGE}:${TAG} .
+                    docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
+                '''
+            }
+        }
+
+        /* ✅ DOCKER PUSH */
+        stage('Docker Push') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'dockerhub-pass', variable: 'DOCKER_PASSWORD')
+                ]) {
                     sh '''
                         set -eux
 
                         echo "$DOCKER_PASSWORD" | docker login -u ${REGISTRY} --password-stdin
-
-                        docker build -t ${IMAGE}:${TAG} .
-                        docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
 
                         docker push ${IMAGE}:${TAG}
                         docker push ${IMAGE}:latest
@@ -71,8 +75,8 @@ pipeline {
             }
         }
 
-        /* ✅ DEPLOY K8S */
-        stage('Deploy') {
+        /* ✅ DEPLOY */
+        stage('Deploy to K3s') {
             steps {
                 sh '''
                     set -eux
@@ -81,7 +85,7 @@ pipeline {
 
                     kubectl rollout restart deployment frontend-auth -n ${NAMESPACE}
 
-                    kubectl rollout status deployment frontend-auth -n ${NAMESPACE}
+                    kubectl rollout status deployment frontend-auth -n ${NAMESPACE} --timeout=180s
                 '''
             }
         }
