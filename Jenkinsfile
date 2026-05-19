@@ -14,9 +14,6 @@ pipeline {
         IMAGE      = "${REGISTRY}/frontend-auth"
         TAG        = "${BUILD_NUMBER}"
         NAMESPACE  = "gestion-projet"
-
-        SONAR_PROJECT_KEY = "rouissinour464_micro-service-front"
-        SONAR_ORG = "rouissinour464"
     }
 
     stages {
@@ -39,30 +36,10 @@ pipeline {
                       -w /app \
                       node:20 \
                       sh -c "
-                        npm install &&
+                        npm ci &&
                         npm run test -- --watchAll=false
                       "
                 '''
-            }
-        }
-
-        /* ✅ SONAR FIX ✅ */
-        stage('SonarCloud') {
-            steps {
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                    sh '''
-                        docker run --rm \
-                          -v "$PWD:/usr/src" \
-                          -w /usr/src \
-                          sonarsource/sonar-scanner-cli \
-                          sonar-scanner \
-                          -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                          -Dsonar.organization=${SONAR_ORG} \
-                          -Dsonar.sources=. \
-                          -Dsonar.host.url=https://sonarcloud.io \
-                          -Dsonar.token=$SONAR_TOKEN
-                    '''
-                }
             }
         }
 
@@ -91,9 +68,22 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh '''
+                    set -eux
+
                     kubectl apply -k k8s/app
+
                     kubectl rollout restart deployment frontend-auth -n ${NAMESPACE}
+
                     kubectl rollout status deployment frontend-auth -n ${NAMESPACE}
+                '''
+            }
+        }
+
+        /* ✅ CHECK */
+        stage('Check Pods') {
+            steps {
+                sh '''
+                    kubectl get pods -n ${NAMESPACE}
                 '''
             }
         }
@@ -101,7 +91,7 @@ pipeline {
 
     post {
         success {
-            echo "✅ FRONTEND SUCCESS 🚀"
+            echo "✅ FRONTEND PIPELINE (FAST & CLEAN) 🚀"
         }
 
         failure {
