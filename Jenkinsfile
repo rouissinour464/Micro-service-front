@@ -5,31 +5,30 @@ pipeline {
         githubPush()
     }
 
-    environment {
-        REGISTRY   = "nour292"
-        IMAGE      = "${REGISTRY}/frontend-auth"
-        TAG        = "latest"
-        NAMESPACE  = "gestion-projet"
-    }
-
     options {
         timestamps()
     }
 
+    environment {
+        REGISTRY   = "nour292"
+        IMAGE      = "${REGISTRY}/frontend-auth"
+        TAG        = "${BUILD_NUMBER}"
+        NAMESPACE  = "gestion-projet"
+
+        SONAR_PROJECT_KEY = "rouissinour464_micro-service-front"
+        SONAR_ORG = "rouissinour464"
+    }
+
     stages {
 
-        /* =======================
-           CHECKOUT
-        ======================= */
+        /* ======================= */
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        /* =======================
-           INSTALL + TESTS (Docker Node)
-        ======================= */
+        /* ======================= */
         stage('Install & Test') {
             steps {
                 sh '''
@@ -47,9 +46,7 @@ pipeline {
             }
         }
 
-        /* =======================
-           BUILD REACT
-        ======================= */
+        /* ======================= */
         stage('Build React') {
             steps {
                 sh '''
@@ -59,37 +56,50 @@ pipeline {
                       -v "$PWD:/app" \
                       -w /app \
                       node:20-alpine \
-sh -c "npm install && npm install @csstools/normalize.css && npm run build"                '''
-            }
-        }
-
-        /* =======================
-           DOCKER BUILD
-        ======================= */
-        stage('Docker Build') {
-            steps {
-                sh '''
-                    set -eux
-
-                    docker build -t ${IMAGE}:${TAG} .
+                      sh -c "
+                        npm install &&
+                        npm run build
+                      "
                 '''
             }
         }
 
-        /* =======================
-           DOCKER PUSH
-        ======================= */
-        stage('Docker Push') {
+        /* ======================= */
+        stage('SonarCloud') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'dockerhub-pass', variable: 'DOCKER_PASSWORD')
-                ]) {
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                        docker run --rm \
+                          -v "$PWD:/app" \
+                          -w /app \
+                          node:20-alpine \
+                          sh -c "
+                            npm install &&
+                            npx sonar-scanner \
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                            -Dsonar.organization=${SONAR_ORG} \
+                            -Dsonar.host.url=https://sonarcloud.io \
+                            -Dsonar.login=$SONAR_TOKEN
+                          "
+                    '''
+                }
+            }
+        }
+
+        /* ======================= */
+        stage('Docker Build & Push') {
+            steps {
+                withCredentials([string(credentialsId: 'dockerhub-pass', variable: 'DOCKER_PASSWORD')]) {
                     sh '''
                         set -eux
 
                         echo "$DOCKER_PASSWORD" | docker login -u ${REGISTRY} --password-stdin
 
+                        docker build -t ${IMAGE}:${TAG} .
+                        docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
+
                         docker push ${IMAGE}:${TAG}
+                        docker push ${IMAGE}:latest
 
                         docker logout
                     '''
@@ -97,9 +107,29 @@ sh -c "npm install && npm install @csstools/normalize.css && npm run build"     
             }
         }
 
-        /* =======================
-           DEPLOY K3S
-        ======================= */
+        /* ======================= */
+        stage('Check Cluster Nodes') {
+            steps {
+                sh '''
+                    set -eux
+
+                    echo "=== CHECK NODES ==="
+                    kubectl get nodes
+
+                    NOT_READY=$(kubectl get nodes --no-headers | grep -v " Ready" || true)
+
+                    if [ ! -z "$NOT_READY" ]; then
+                      echo "❌ Some nodes NOT READY"
+                      kubectl get nodes
+                      exit 1
+                    fi
+
+                    echo "✅ ALL NODES READY"
+                '''
+            }
+        }
+
+        /* ======================= */
         stage('Deploy to K3s') {
             steps {
                 sh '''
@@ -116,12 +146,20 @@ sh -c "npm install && npm install @csstools/normalize.css && npm run build"     
     }
 
     post {
+
         success {
-            echo "✅ FRONTEND PIPELINE SUCCESS (BUILD + TEST + DEPLOY)"
+            echo "✅ FRONTEND PIPELINE SUCCESS 🚀"
         }
 
         failure {
             echo "❌ PIPELINE FAILED"
+
+            sh '''
+                echo "=== DEBUG K8S ==="
+                kubectl get pods -n ${NAMESPACE} || true
+                kubectl describe pods -n ${NAMESPACE} || true
+                kubectl get events -n ${NAMESPACE} || true
+            '''
         }
 
         always {
