@@ -6,6 +6,7 @@ pipeline {
     }
 
     options {
+        skipDefaultCheckout(true)
         timestamps()
     }
 
@@ -78,6 +79,8 @@ pipeline {
                         git config user.email "${GIT_USER_EMAIL}"
                         git config user.name  "${GIT_USER_NAME}"
 
+                        git checkout -B main
+
                         sed -i "s|newTag:.*|newTag: \\"${TAG}\\"|g" k8s/app/kustomization.yaml
 
                         git add k8s/app/kustomization.yaml
@@ -85,7 +88,7 @@ pipeline {
 
                         REMOTE=$(git remote get-url origin \
                             | sed "s|https://|https://${GIT_USER}:${GIT_TOKEN}@|")
-                        git push "$REMOTE" HEAD:$(git rev-parse --abbrev-ref HEAD)
+                        git push "$REMOTE" HEAD:main
                     '''
                 }
             }
