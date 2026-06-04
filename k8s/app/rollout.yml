@@ -1,5 +1,5 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
 metadata:
   name: frontend-auth
   namespace: gestion-projet
@@ -8,6 +8,16 @@ spec:
   selector:
     matchLabels:
       app: frontend-auth
+  strategy:
+    canary:
+      stableService: frontend-auth
+      canaryService: frontend-auth-canary
+      steps:
+        - setWeight: 20
+        - pause: {}
+        - setWeight: 50
+        - pause: {duration: 2m}
+        - setWeight: 100
   template:
     metadata:
       labels:

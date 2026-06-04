@@ -5,7 +5,7 @@ namespace: gestion-projet
 
 resources:
   - configmap.yml
-  - frontend-deployment.yml
+  - rollout.yml
   - frontend-service.yml
 
 # ← ajouter ceci

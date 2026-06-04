@@ -94,6 +94,33 @@ pipeline {
             }
         }
 
+        stage('Deploy via Kustomize') {
+            steps {
+                sh '''
+                    set -eux
+
+                    echo "📂 Contenu de k8s/app :"
+                    ls -la k8s/app/
+
+                    echo "🔍 Manifestes générés par Kustomize :"
+                    kubectl kustomize k8s/app
+
+                    echo "⚙️  Application du ConfigMap..."
+                    kubectl apply -f k8s/app/configmap.yml -n ${NAMESPACE}
+
+                    echo "🚀 Déploiement via Kustomize..."
+                    kubectl apply -k k8s/app
+
+                    # ✅ Rollout au lieu de Deployment
+                    echo "⏳ Attente du rollout..."
+                    kubectl argo rollouts status frontend-auth \
+                        -n ${NAMESPACE} --timeout=120s
+
+                    echo "✅ Déploiement frontend-auth terminé"
+                '''
+            }
+        }
+
         stage('Wait ArgoCD Sync') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -111,6 +138,8 @@ pipeline {
             steps {
                 sh '''
                     kubectl get pods -n ${NAMESPACE}
+                    # ✅ Rollout au lieu de Deployment
+                    kubectl argo rollouts get rollout frontend-auth -n ${NAMESPACE} || true
                     kubectl get applications -n argocd || true
                 '''
             }
@@ -125,6 +154,7 @@ pipeline {
             echo "❌ PIPELINE FAILED"
             sh '''
                 kubectl get pods -n ${NAMESPACE} || true
+                kubectl argo rollouts get rollout frontend-auth -n ${NAMESPACE} || true
                 argocd app get frontend-auth --grpc-web || true
             '''
         }
