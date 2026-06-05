@@ -94,7 +94,7 @@ pipeline {
 
                         git commit -m "ci: frontend-auth image → ${TAG} [skip ci]"
 
-                        git push "$REMOTE" HEAD:v2 --force-with-lease
+                        git push "$REMOTE" HEAD:v2 --force
 
                         echo "Git mis à jour — ArgoCD va sync automatiquement"
                     '''
