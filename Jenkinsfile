@@ -81,12 +81,10 @@ pipeline {
                         REMOTE=$(git remote get-url origin \
                             | sed "s|https://|https://${GIT_USER}:${GIT_TOKEN}@|")
 
-                        # Fetch pour avoir les infos à jour avant force-with-lease
                         git fetch "$REMOTE" v2
-
                         git checkout -B v2 FETCH_HEAD
 
-                        sed -i "s|newTag:.*|newTag: \\"${TAG}\\"|g" \
+                        sed -i 's|newTag:.*|newTag: "'"${TAG}"'"|g' \
                             k8s/app/kustomization.yaml
 
                         git add k8s/app/kustomization.yaml
