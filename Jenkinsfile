@@ -169,7 +169,7 @@ pipeline {
                     for i in $(seq 1 30); do
                         STATUS=$(kubectl argo rollouts get rollout \
                             ${ROLLOUT_NAME} -n ${NAMESPACE} \
-                            | grep "Status:" | awk "{print \$2}")
+                            | grep "Status:" | awk "{print $2}")
 
                         echo "Status : $STATUS (tentative $i)"
 
