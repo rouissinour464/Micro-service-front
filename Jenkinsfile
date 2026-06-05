@@ -23,18 +23,12 @@ pipeline {
 
     stages {
 
-        // ─────────────────────────────────────────
-        // 1. Checkout du code source frontend
-        // ─────────────────────────────────────────
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        // ─────────────────────────────────────────
-        // 2. Tests unitaires React
-        // ─────────────────────────────────────────
         stage('Test') {
             steps {
                 sh '''
@@ -48,9 +42,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // 3. Build image Docker + push Docker Hub
-        // ─────────────────────────────────────────
         stage('Docker Build & Push') {
             steps {
                 withCredentials([string(
@@ -75,11 +66,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // 4. Mettre à jour kustomization.yaml dans Git
-        //    → ArgoCD détecte le changement et sync
-        //    → Le Rollout démarre automatiquement
-        // ─────────────────────────────────────────
         stage('Update Git → ArgoCD Sync') {
             steps {
                 withCredentials([usernamePassword(
@@ -92,23 +78,23 @@ pipeline {
                         git config user.email "${GIT_USER_EMAIL}"
                         git config user.name  "${GIT_USER_NAME}"
 
-                        git checkout -B v2
+                        REMOTE=$(git remote get-url origin \
+                            | sed "s|https://|https://${GIT_USER}:${GIT_TOKEN}@|")
 
-                        # Mettre à jour le tag image dans kustomization.yaml
-                        # Fichier : Micro-service-front/k8s/app/kustomization.yaml
+                        # Fetch pour avoir les infos à jour avant force-with-lease
+                        git fetch "$REMOTE" v2
+
+                        git checkout -B v2 FETCH_HEAD
+
                         sed -i "s|newTag:.*|newTag: \\"${TAG}\\"|g" \
                             k8s/app/kustomization.yaml
 
                         git add k8s/app/kustomization.yaml
 
-                        # Si pas de changement, skip
                         git diff --cached --quiet && \
                             echo "Pas de changement Git — skip" && exit 0
 
                         git commit -m "ci: frontend-auth image → ${TAG} [skip ci]"
-
-                        REMOTE=$(git remote get-url origin \
-                            | sed "s|https://|https://${GIT_USER}:${GIT_TOKEN}@|")
 
                         git push "$REMOTE" HEAD:v2 --force-with-lease
 
@@ -118,10 +104,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // 5. Attendre qu'ArgoCD sync et que le
-        //    Rollout Canary démarre (pod canary up)
-        // ─────────────────────────────────────────
         stage('Wait Canary Pod') {
             steps {
                 sh '''
@@ -133,7 +115,6 @@ pipeline {
                     kubectl argo rollouts get rollout ${ROLLOUT_NAME} \
                         -n ${NAMESPACE}
 
-                    # Attendre que le pod canary soit Running (max 3 min)
                     READY=false
                     for i in $(seq 1 36); do
                         CANARY_RUNNING=$(kubectl get pods -n ${NAMESPACE} \
@@ -160,10 +141,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // 6. Promotion Canary : 20% → 50% → 100%
-        //    (pause: {duration: 30s} entre chaque)
-        // ─────────────────────────────────────────
         stage('Promote Canary 20% → 50%') {
             steps {
                 sh '''
@@ -190,7 +167,6 @@ pipeline {
                     kubectl argo rollouts promote ${ROLLOUT_NAME} \
                         -n ${NAMESPACE}
 
-                    # Attendre que le Rollout soit Healthy
                     echo "Attente Healthy..."
                     for i in $(seq 1 30); do
                         STATUS=$(kubectl argo rollouts get rollout \
@@ -209,9 +185,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────
-        // 7. Vérification finale
-        // ─────────────────────────────────────────
         stage('Verify') {
             steps {
                 sh '''
