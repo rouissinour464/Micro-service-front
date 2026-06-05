@@ -160,7 +160,7 @@ pipeline {
         stage('Promote Canary 50% → 100%') {
             steps {
                 sh '''
-                    set -eux
+                    set -ex
                     echo "Promotion canary : 50% → 100%"
                     kubectl argo rollouts promote ${ROLLOUT_NAME} \
                         -n ${NAMESPACE}
@@ -169,11 +169,11 @@ pipeline {
                     for i in $(seq 1 30); do
                         STATUS=$(kubectl argo rollouts get rollout \
                             ${ROLLOUT_NAME} -n ${NAMESPACE} \
-                            | grep "Status:" | awk "{print $2}")
+                            | grep "Status:" | awk '{print $2}' || echo "Unknown")
 
-                        echo "Status : $STATUS (tentative $i)"
+                        echo "Status : ${STATUS:-Unknown} (tentative $i)"
 
-                        if [ "$STATUS" = "Healthy" ]; then
+                        if [ "${STATUS:-}" = "Healthy" ]; then
                             echo "Rollout Healthy"
                             break
                         fi
@@ -222,7 +222,7 @@ pipeline {
                 echo "=== Logs pod canary ==="
                 kubectl get pods -n ${NAMESPACE} \
                     -l app=${ROLLOUT_NAME} --no-headers \
-                    | awk "{print \$1}" \
+                    | awk '{print $1}' \
                     | head -1 \
                     | xargs -I{} kubectl logs {} \
                         -n ${NAMESPACE} \
