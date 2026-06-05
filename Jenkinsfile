@@ -3,7 +3,6 @@ pipeline {
 
     triggers {
         githubPush()
-        cron('H */6 * * *')
     }
 
     options {
@@ -12,11 +11,11 @@ pipeline {
     }
 
     environment {
-        REGISTRY   = "nour292"
-        IMAGE      = "${REGISTRY}/frontend-auth"
-        TAG        = "${BUILD_NUMBER}"
-        NAMESPACE  = "gestion-projet"
-
+        REGISTRY           = "nour292"
+        IMAGE              = "${REGISTRY}/frontend-auth"
+        TAG                = "${BUILD_NUMBER}"
+        NAMESPACE          = "gestion-projet"
+        ROLLOUT_NAME       = "frontend-auth"
         GIT_CREDENTIALS_ID = "github-creds"
         GIT_USER_EMAIL     = "jenkins@ci.local"
         GIT_USER_NAME      = "Jenkins CI"
@@ -24,11 +23,19 @@ pipeline {
 
     stages {
 
+        // ─────────────────────────────────────────
+        // 1. Checkout du code source frontend
+        // ─────────────────────────────────────────
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+            }
         }
 
-        stage('Install & Test') {
+        // ─────────────────────────────────────────
+        // 2. Tests unitaires React
+        // ─────────────────────────────────────────
+        stage('Test') {
             steps {
                 sh '''
                     set -eux
@@ -36,42 +43,44 @@ pipeline {
                       -v "$PWD:/app" \
                       -w /app \
                       node:20-alpine \
-                      sh -c "
-                        npm install &&
-                        npm run test -- --watchAll=false
-                      "
+                      sh -c "npm install && npm run test -- --watchAll=false"
                 '''
             }
         }
 
-        stage('Docker Build') {
+        // ─────────────────────────────────────────
+        // 3. Build image Docker + push Docker Hub
+        // ─────────────────────────────────────────
+        stage('Docker Build & Push') {
             steps {
-                sh '''
-                    set -eux
-                    docker build -t ${IMAGE}:${TAG} .
-                    docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
-                '''
-            }
-        }
-
-        stage('Docker Push') {
-            steps {
-                withCredentials([string(credentialsId: 'dockerhub-pass', variable: 'DOCKER_PASSWORD')]) {
+                withCredentials([string(
+                    credentialsId: 'dockerhub-pass',
+                    variable: 'DOCKER_PASSWORD'
+                )]) {
                     sh '''
                         set -eux
-                        echo "$DOCKER_PASSWORD" | docker login -u ${REGISTRY} --password-stdin
+                        docker build -t ${IMAGE}:${TAG} .
+                        docker tag  ${IMAGE}:${TAG} ${IMAGE}:latest
+
+                        echo "$DOCKER_PASSWORD" | \
+                            docker login -u ${REGISTRY} --password-stdin
+
                         docker push ${IMAGE}:${TAG}
                         docker push ${IMAGE}:latest
                         docker logout
 
-                        echo "🧹 Cleanup images locales..."
                         docker rmi ${IMAGE}:${TAG} ${IMAGE}:latest || true
                     '''
                 }
             }
         }
 
-        stage('Update Image Tag') {
+        // ─────────────────────────────────────────
+        // 4. Mettre à jour kustomization.yaml dans Git
+        //    → ArgoCD détecte le changement et sync
+        //    → Le Rollout démarre automatiquement
+        // ─────────────────────────────────────────
+        stage('Update Git → ArgoCD Sync') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: "${GIT_CREDENTIALS_ID}",
@@ -85,79 +94,140 @@ pipeline {
 
                         git checkout -B v2
 
-                        sed -i "s|newTag:.*|newTag: \\"${TAG}\\"|g" k8s/app/kustomization.yaml
+                        # Mettre à jour le tag image dans kustomization.yaml
+                        # Fichier : Micro-service-front/k8s/app/kustomization.yaml
+                        sed -i "s|newTag:.*|newTag: \\"${TAG}\\"|g" \
+                            k8s/app/kustomization.yaml
 
                         git add k8s/app/kustomization.yaml
-                        git diff --cached --quiet && echo "⏭️ Pas de changement — skip commit" && exit 0
 
-                        git commit -m "ci: update frontend-auth image tag to ${TAG} [skip ci]"
+                        # Si pas de changement, skip
+                        git diff --cached --quiet && \
+                            echo "Pas de changement Git — skip" && exit 0
+
+                        git commit -m "ci: frontend-auth image → ${TAG} [skip ci]"
 
                         REMOTE=$(git remote get-url origin \
                             | sed "s|https://|https://${GIT_USER}:${GIT_TOKEN}@|")
+
                         git push "$REMOTE" HEAD:v2 --force-with-lease
+
+                        echo "Git mis à jour — ArgoCD va sync automatiquement"
                     '''
                 }
             }
         }
 
-        stage('Deploy via Kustomize') {
+        // ─────────────────────────────────────────
+        // 5. Attendre qu'ArgoCD sync et que le
+        //    Rollout Canary démarre (pod canary up)
+        // ─────────────────────────────────────────
+        stage('Wait Canary Pod') {
             steps {
                 sh '''
                     set -eux
+                    echo "Attente sync ArgoCD (40s)..."
+                    sleep 40
 
-                    echo "📂 Contenu de k8s/app :"
-                    ls -la k8s/app/
+                    echo "État du Rollout :"
+                    kubectl argo rollouts get rollout ${ROLLOUT_NAME} \
+                        -n ${NAMESPACE}
 
-                    echo "🔍 Manifestes générés par Kustomize :"
-                    kubectl kustomize k8s/app
+                    # Attendre que le pod canary soit Running (max 3 min)
+                    READY=false
+                    for i in $(seq 1 36); do
+                        CANARY_RUNNING=$(kubectl get pods -n ${NAMESPACE} \
+                            -l app=${ROLLOUT_NAME} \
+                            --field-selector=status.phase=Running \
+                            --no-headers 2>/dev/null | wc -l)
 
-                    echo "⚙️  Application du ConfigMap..."
-                    kubectl apply -f k8s/app/configmap.yml -n ${NAMESPACE}
+                        echo "Pods Running : $CANARY_RUNNING / tentative $i"
 
-                    echo "🚀 Déploiement via Kustomize..."
-                    kubectl apply -k k8s/app
+                        if [ "$CANARY_RUNNING" -ge 1 ]; then
+                            READY=true
+                            break
+                        fi
+                        sleep 5
+                    done
 
-                    echo "⏳ Attente du Rollout..."
-                    kubectl argo rollouts status frontend-auth \
-                        -n ${NAMESPACE} --timeout=120s || true
+                    if [ "$READY" = "false" ]; then
+                        echo "Pod canary pas Running après 3 min"
+                        exit 1
+                    fi
 
-                    echo "🔄 Restart forcé..."
-                    kubectl argo rollouts restart frontend-auth \
-                        -n ${NAMESPACE} || true
-
-                    echo "✅ Déploiement frontend-auth terminé"
+                    echo "Pod canary Running — prêt pour promotion"
                 '''
             }
         }
 
-        stage('Wait ArgoCD Sync') {
+        // ─────────────────────────────────────────
+        // 6. Promotion Canary : 20% → 50% → 100%
+        //    (pause: {duration: 30s} entre chaque)
+        // ─────────────────────────────────────────
+        stage('Promote Canary 20% → 50%') {
             steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    sh '''
-                        set -eux
-                        argocd app wait frontend-auth \
-                            --sync --health --timeout 240 --grpc-web || true
-                        argocd app get frontend-auth --grpc-web || true
-                    '''
-                }
+                sh '''
+                    set -eux
+                    echo "Promotion canary : 20% → 50%"
+                    kubectl argo rollouts promote ${ROLLOUT_NAME} \
+                        -n ${NAMESPACE}
+
+                    echo "Attente pause 2 min à 50%..."
+                    sleep 130
+
+                    echo "État à 50% :"
+                    kubectl argo rollouts get rollout ${ROLLOUT_NAME} \
+                        -n ${NAMESPACE}
+                '''
             }
         }
 
-        stage('Check Pods') {
+        stage('Promote Canary 50% → 100%') {
             steps {
                 sh '''
-                    echo "📦 Pods :"
-                    kubectl get pods -n ${NAMESPACE} || true
+                    set -eux
+                    echo "Promotion canary : 50% → 100%"
+                    kubectl argo rollouts promote ${ROLLOUT_NAME} \
+                        -n ${NAMESPACE}
 
-                    echo "🟡 Rollout status :"
-                    kubectl argo rollouts get rollout frontend-auth \
-                        -n ${NAMESPACE} || true
+                    # Attendre que le Rollout soit Healthy
+                    echo "Attente Healthy..."
+                    for i in $(seq 1 30); do
+                        STATUS=$(kubectl argo rollouts get rollout \
+                            ${ROLLOUT_NAME} -n ${NAMESPACE} \
+                            | grep "Status:" | awk "{print \$2}")
 
-                    echo "🌐 Services :"
-                    kubectl get svc -n ${NAMESPACE} || true
+                        echo "Status : $STATUS (tentative $i)"
 
-                    echo "📊 ArgoCD Apps :"
-                    kubectl get applications -n argocd || true
+                        if [ "$STATUS" = "Healthy" ]; then
+                            echo "Rollout Healthy"
+                            break
+                        fi
+                        sleep 10
+                    done
+                '''
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // 7. Vérification finale
+        // ─────────────────────────────────────────
+        stage('Verify') {
+            steps {
+                sh '''
+                    echo "=== Rollout final ==="
+                    kubectl argo rollouts get rollout ${ROLLOUT_NAME} \
+                        -n ${NAMESPACE}
+
+                    echo "=== Pods frontend ==="
+                    kubectl get pods -n ${NAMESPACE} \
+                        -l app=${ROLLOUT_NAME}
+
+                    echo "=== Services ==="
+                    kubectl get svc -n ${NAMESPACE} | grep frontend
+
+                    echo "=== ArgoCD Application ==="
+                    kubectl get application frontend-auth -n argocd
                 '''
             }
         }
@@ -165,28 +235,37 @@ pipeline {
 
     post {
         success {
-            echo "✅ FRONTEND PIPELINE SUCCESS 🚀"
+            echo "SUCCES — frontend-auth:${TAG} déployé en production"
         }
-        failure {
-            echo "❌ PIPELINE FAILED"
-            sh '''
-                echo "=== Pods ==="
-                kubectl get pods -n ${NAMESPACE} || true
 
-                echo "=== Rollout ==="
-                kubectl argo rollouts get rollout frontend-auth \
+        failure {
+            sh '''
+                echo "=== ROLLBACK automatique ==="
+                kubectl argo rollouts abort ${ROLLOUT_NAME} \
                     -n ${NAMESPACE} || true
+
+                echo "=== État après abort ==="
+                kubectl argo rollouts get rollout ${ROLLOUT_NAME} \
+                    -n ${NAMESPACE} || true
+
+                echo "=== Logs pod canary ==="
+                kubectl get pods -n ${NAMESPACE} \
+                    -l app=${ROLLOUT_NAME} --no-headers \
+                    | awk "{print \$1}" \
+                    | head -1 \
+                    | xargs -I{} kubectl logs {} \
+                        -n ${NAMESPACE} \
+                        -c frontend-auth \
+                        --tail=50 || true
 
                 echo "=== Events ==="
                 kubectl get events -n ${NAMESPACE} \
-                    --sort-by='.lastTimestamp' || true
-
-                echo "=== ArgoCD ==="
-                argocd app get frontend-auth --grpc-web || true
+                    --sort-by=.lastTimestamp | tail -20 || true
             '''
         }
+
         always {
             cleanWs()
         }
     }
-}cl
+}

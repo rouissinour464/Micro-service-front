@@ -14,7 +14,7 @@ spec:
       canaryService: frontend-auth-canary
       steps:
         - setWeight: 20
-        - pause: {}
+        - pause: {duration: 30s}
         - setWeight: 50
         - pause: {duration: 2m}
         - setWeight: 100
