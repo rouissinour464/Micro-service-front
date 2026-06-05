@@ -3,6 +3,7 @@ pipeline {
 
     triggers {
         githubPush()
+        cron('H */6 * * *')
     }
 
     options {
@@ -62,6 +63,9 @@ pipeline {
                         docker push ${IMAGE}:${TAG}
                         docker push ${IMAGE}:latest
                         docker logout
+
+                        echo "🧹 Cleanup images locales..."
+                        docker rmi ${IMAGE}:${TAG} ${IMAGE}:latest || true
                     '''
                 }
             }
@@ -84,11 +88,13 @@ pipeline {
                         sed -i "s|newTag:.*|newTag: \\"${TAG}\\"|g" k8s/app/kustomization.yaml
 
                         git add k8s/app/kustomization.yaml
+                        git diff --cached --quiet && echo "⏭️ Pas de changement — skip commit" && exit 0
+
                         git commit -m "ci: update frontend-auth image tag to ${TAG} [skip ci]"
 
                         REMOTE=$(git remote get-url origin \
                             | sed "s|https://|https://${GIT_USER}:${GIT_TOKEN}@|")
-                        git push "$REMOTE" HEAD:v2
+                        git push "$REMOTE" HEAD:v2 --force-with-lease
                     '''
                 }
             }
@@ -111,10 +117,13 @@ pipeline {
                     echo "🚀 Déploiement via Kustomize..."
                     kubectl apply -k k8s/app
 
-                    # ✅ Rollout au lieu de Deployment
-                    echo "⏳ Attente du rollout..."
+                    echo "⏳ Attente du Rollout..."
                     kubectl argo rollouts status frontend-auth \
-                        -n ${NAMESPACE} --timeout=120s
+                        -n ${NAMESPACE} --timeout=120s || true
+
+                    echo "🔄 Restart forcé..."
+                    kubectl argo rollouts restart frontend-auth \
+                        -n ${NAMESPACE} || true
 
                     echo "✅ Déploiement frontend-auth terminé"
                 '''
@@ -137,9 +146,17 @@ pipeline {
         stage('Check Pods') {
             steps {
                 sh '''
-                    kubectl get pods -n ${NAMESPACE}
-                    # ✅ Rollout au lieu de Deployment
-                    kubectl argo rollouts get rollout frontend-auth -n ${NAMESPACE} || true
+                    echo "📦 Pods :"
+                    kubectl get pods -n ${NAMESPACE} || true
+
+                    echo "🟡 Rollout status :"
+                    kubectl argo rollouts get rollout frontend-auth \
+                        -n ${NAMESPACE} || true
+
+                    echo "🌐 Services :"
+                    kubectl get svc -n ${NAMESPACE} || true
+
+                    echo "📊 ArgoCD Apps :"
                     kubectl get applications -n argocd || true
                 '''
             }
@@ -153,8 +170,18 @@ pipeline {
         failure {
             echo "❌ PIPELINE FAILED"
             sh '''
+                echo "=== Pods ==="
                 kubectl get pods -n ${NAMESPACE} || true
-                kubectl argo rollouts get rollout frontend-auth -n ${NAMESPACE} || true
+
+                echo "=== Rollout ==="
+                kubectl argo rollouts get rollout frontend-auth \
+                    -n ${NAMESPACE} || true
+
+                echo "=== Events ==="
+                kubectl get events -n ${NAMESPACE} \
+                    --sort-by='.lastTimestamp' || true
+
+                echo "=== ArgoCD ==="
                 argocd app get frontend-auth --grpc-web || true
             '''
         }
@@ -162,4 +189,4 @@ pipeline {
             cleanWs()
         }
     }
-}
+}cl
