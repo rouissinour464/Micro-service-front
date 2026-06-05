@@ -11,4 +11,4 @@ resources:
 # ← ajouter ceci
 images:
   - name: nour292/frontend-auth
-    newTag: "latest"
+    newTag: "863"
