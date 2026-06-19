@@ -25,6 +25,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
+                cleanWs()
                 checkout scm
             }
         }
@@ -33,11 +34,7 @@ pipeline {
             steps {
                 sh '''
                     set -eux
-                    docker run --rm \
-                      -v "$PWD:/app" \
-                      -w /app \ #toutes les commandes s'exécutent dans /app
-                      node:20-alpine \
-                      sh -c "npm ci --fetch-retries=5 && npm run test -- --watchAll=false"
+                    docker run --rm -v "$PWD:/app" -w /app node:20-alpine sh -c "npm ci --fetch-retries=5 && npm run test -- --watchAll=false"
                 '''
             }
         }
