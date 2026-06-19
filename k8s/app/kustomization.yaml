@@ -10,4 +10,4 @@ resources:
 
 images:
   - name: nour292/frontend-auth
-    newTag: "latest"
+    newTag: "876"
