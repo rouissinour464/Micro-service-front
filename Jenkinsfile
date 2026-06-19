@@ -35,9 +35,9 @@ pipeline {
                     set -eux
                     docker run --rm \
                       -v "$PWD:/app" \
-                      -w /app \
+                      -w /app \ #toutes les commandes s'exécutent dans /app
                       node:20-alpine \
-                      sh -c "npm install && npm run test -- --watchAll=false"
+                      sh -c "npm ci --fetch-retries=5 && npm run test -- --watchAll=false"
                 '''
             }
         }

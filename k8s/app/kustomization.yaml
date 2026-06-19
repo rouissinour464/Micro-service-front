@@ -8,7 +8,6 @@ resources:
   - rollout.yml
   - frontend-service.yml
 
-# ← ajouter ceci
 images:
   - name: nour292/frontend-auth
-    newTag: "863"
+    newTag: "latest"
